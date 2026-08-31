@@ -1,0 +1,34 @@
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json turbo.json tsconfig.base.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY packages/types/package.json packages/types/package.json
+COPY packages/utils/package.json packages/utils/package.json
+
+RUN npm ci
+
+COPY apps/api apps/api
+COPY packages/types packages/types
+COPY packages/utils packages/utils
+
+RUN npm run prisma:generate --workspace=@app/api
+RUN npx turbo run build --filter=@app/api
+
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY --from=builder /app/packages/types ./packages/types
+COPY --from=builder /app/packages/utils ./packages/utils
+COPY --from=builder /app/package.json ./package.json
+
+EXPOSE 3002
+
+CMD ["sh", "-c", "npm run prisma:push --workspace=@app/api && node apps/api/dist/main.js"]

@@ -1,0 +1,28 @@
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json turbo.json tsconfig.base.json ./
+COPY apps/admin/package.json apps/admin/package.json
+
+RUN npm ci
+
+COPY apps/admin apps/admin
+
+RUN npm run build --workspace=@app/admin
+
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/admin/.next ./apps/admin/.next
+COPY --from=builder /app/apps/admin/package.json ./apps/admin/package.json
+COPY --from=builder /app/apps/admin/next.config.ts ./apps/admin/next.config.ts
+COPY --from=builder /app/apps/admin/next-env.d.ts ./apps/admin/next-env.d.ts
+COPY --from=builder /app/apps/admin/app ./apps/admin/app
+
+EXPOSE 3001
+
+CMD ["npm", "run", "--workspace=@app/admin", "start"]

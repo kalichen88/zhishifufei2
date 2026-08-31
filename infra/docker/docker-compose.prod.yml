@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: knowledge-pay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-knowledge_pay_rewrite}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-knowledge_pay_rewrite}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.api
+    container_name: knowledge-pay-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_URL: ${DATABASE_URL}
+      YZM_RESOURCE_API_BASE_URL: ${YZM_RESOURCE_API_BASE_URL}
+      YZM_RESOURCE_API_KEY: ${YZM_RESOURCE_API_KEY}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
+      ADMIN_INIT_USERNAME: ${ADMIN_INIT_USERNAME}
+      ADMIN_INIT_PASSWORD: ${ADMIN_INIT_PASSWORD}
+      EPAY_API_URL: ${EPAY_API_URL}
+      EPAY_PID: ${EPAY_PID}
+      EPAY_KEY: ${EPAY_KEY}
+      PAY_API_PUBLIC_BASE_URL: ${PAY_API_PUBLIC_BASE_URL}
+      PAY_WEB_BASE_URL: ${PAY_WEB_BASE_URL}
+    ports:
+      - "3002:3002"
+
+  web:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.web
+    container_name: knowledge-pay-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    ports:
+      - "3000:3000"
+
+  admin:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.admin
+    container_name: knowledge-pay-admin
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    ports:
+      - "3001:3001"
+
+volumes:
+  postgres_prod_data:

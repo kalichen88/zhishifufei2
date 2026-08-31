@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CloudSyncState {
+  ACTIVE
+  OFFLINE
+  DELETED
+}
+
+enum PublishState {
+  DRAFT
+  REVIEWING
+  PUBLISHED
+  UNPUBLISHED
+}
+
+enum WebhookEventType {
+  RESOURCE_DELETED
+  RESOURCE_OFFLINE
+  UNKNOWN
+}
+
+enum WebhookProcessState {
+  PENDING
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum CsvImportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum ContentAccessType {
+  FREE
+  VIP
+  PAID
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  CANCELED
+}
+
+enum ViewerOrderType {
+  MEMBERSHIP_PLAN
+  CONTENT_PURCHASE
+}
+
+enum ViewerOrderStatus {
+  PENDING
+  PAID
+  CANCELED
+}
+
+model CloudMediaAsset {
+  id               String         @id @default(cuid())
+  cloudVid         String         @unique
+  cloudInternalId  Int            @default(0)
+  title            String         @default("")
+  categoryName     String         @default("")
+  durationSec      Decimal        @default(0) @db.Decimal(10, 3)
+  sizeBytes        BigInt         @default(0)
+  sourceMd5        String         @default("")
+  hasStaticCover   Boolean        @default(false)
+  hasGifCover      Boolean        @default(false)
+  staticCoverUrl   String?
+  gifCoverUrl      String?
+  resourceUrl      String?
+  resourceUrl2     String?
+  playUrl          String?
+  urlExpiresAt     Int            @default(0)
+  cloudStatus      Int            @default(0)
+  cloudSyncState   CloudSyncState @default(OFFLINE)
+  publishState     PublishState   @default(DRAFT)
+  cloudCreatedAt   Int            @default(0)
+  cloudUpdatedAt   Int            @default(0)
+  lastSyncedAt     Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([sourceMd5])
+  @@index([cloudSyncState])
+  @@index([urlExpiresAt])
+  @@index([categoryName])
+  @@index([cloudUpdatedAt])
+}
+
+model CloudSyncCursor {
+  id             String   @id @default(cuid())
+  cursorKey      String   @unique
+  lastUpdatedAfter Int    @default(0)
+  lastSyncAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model CloudWebhookEvent {
+  id            String              @id @default(cuid())
+  eventType     WebhookEventType
+  eventKey      String              @unique
+  cloudInternalId Int               @default(0)
+  cloudVid      String
+  payload       Json
+  processState  WebhookProcessState @default(PENDING)
+  processNote   String?
+  receivedAt    DateTime            @default(now())
+  processedAt   DateTime?
+
+  @@index([cloudVid])
+  @@index([processState])
+}
+
+model CsvImportBatch {
+  id            String          @id @default(cuid())
+  status        CsvImportStatus @default(PENDING)
+  sourceName    String
+  totalRows     Int             @default(0)
+  successRows   Int             @default(0)
+  failedRows    Int             @default(0)
+  summary       Json?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model ContentItem {
+  id                 String            @id @default(cuid())
+  title              String
+  cloudVid           String            @unique
+  accessType         ContentAccessType @default(FREE)
+  previewDurationSec Int               @default(0)
+  priceCents         Int               @default(0)
+  publishState       PublishState      @default(DRAFT)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  entitlements       PlaybackEntitlement[]
+  orders             ViewerOrder[]
+
+  @@index([publishState])
+  @@index([accessType])
+}
+
+model ViewerAccount {
+  id           String               @id @default(cuid())
+  viewerKey    String               @unique
+  displayName  String               @default("")
+  memberships  ViewerMembership[]
+  entitlements PlaybackEntitlement[]
+  orders        ViewerOrder[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+}
+
+model ViewerMembership {
+  id              String           @id @default(cuid())
+  viewerAccountId String
+  status          MembershipStatus @default(ACTIVE)
+  expiresAtUnix   Int
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  viewerAccount   ViewerAccount    @relation(fields: [viewerAccountId], references: [id], onDelete: Cascade)
+
+  @@index([viewerAccountId, status, expiresAtUnix])
+}
+
+model PlaybackEntitlement {
+  id              String        @id @default(cuid())
+  viewerAccountId String
+  contentItemId   String
+  source          String        @default("manual")
+  expiresAtUnix   Int?
+  createdAt       DateTime      @default(now())
+  viewerAccount   ViewerAccount @relation(fields: [viewerAccountId], references: [id], onDelete: Cascade)
+  contentItem     ContentItem   @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerAccountId, contentItemId])
+  @@index([viewerAccountId])
+  @@index([contentItemId])
+}
+
+model MembershipPlan {
+  id           String        @id @default(cuid())
+  name         String
+  durationDays Int
+  priceCents   Int
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  orders       ViewerOrder[]
+
+  @@index([isActive])
+}
+
+model ViewerOrder {
+  id               String            @id @default(cuid())
+  orderNo          String            @unique
+  viewerAccountId  String
+  orderType        ViewerOrderType
+  status           ViewerOrderStatus @default(PENDING)
+  amountCents      Int
+  membershipPlanId String?
+  contentItemId    String?
+  paidAt           DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  viewerAccount    ViewerAccount     @relation(fields: [viewerAccountId], references: [id], onDelete: Cascade)
+  membershipPlan   MembershipPlan?   @relation(fields: [membershipPlanId], references: [id], onDelete: SetNull)
+  contentItem      ContentItem?      @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
+
+  @@index([viewerAccountId, status])
+  @@index([membershipPlanId])
+  @@index([contentItemId])
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  OPERATOR
+}
+
+enum AdminUserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model AdminUser {
+  id           String          @id @default(cuid())
+  username     String          @unique
+  passwordHash String
+  displayName  String          @default("")
+  role         AdminRole       @default(SUPER_ADMIN)
+  status       AdminUserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+enum AgentStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum CommissionLevel {
+  LEVEL_1
+  LEVEL_2
+}
+
+enum CommissionStatus {
+  CREDITED
+  REVERSED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AgentAccount {
+  id             String        @id @default(cuid())
+  username       String        @unique
+  passwordHash   String
+  displayName    String        @default("")
+  inviteCode     String        @unique
+  // 佣金比例，万分比：3000 = 30%
+  commissionRateL1 Int         @default(3000)
+  commissionRateL2 Int         @default(1000)
+  balanceCents   Int           @default(0)
+  status         AgentStatus   @default(ACTIVE)
+  referredByAgentId String?
+  referredBy     AgentAccount? @relation("AgentReferral", fields: [referredByAgentId], references: [id], onDelete: SetNull)
+  subAgents      AgentAccount[] @relation("AgentReferral")
+  referrals      AgentReferral[]
+  commissions    AgentCommission[]
+  withdrawals    AgentWithdrawal[]
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([referredByAgentId])
+}
+
+model AgentReferral {
+  id              String       @id @default(cuid())
+  agentId         String
+  viewerAccountId String       @unique
+  boundAt         DateTime     @default(now())
+  agent           AgentAccount @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+}
+
+model AgentCommission {
+  id              String           @id @default(cuid())
+  agentId         String
+  orderId         String
+  viewerAccountId String
+  level           CommissionLevel
+  amountCents     Int
+  status          CommissionStatus @default(CREDITED)
+  createdAt       DateTime         @default(now())
+  agent           AgentAccount     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, orderId, level])
+  @@index([agentId, createdAt])
+}
+
+model AgentWithdrawal {
+  id          String           @id @default(cuid())
+  agentId     String
+  amountCents Int
+  accountInfo String
+  status      WithdrawalStatus @default(PENDING)
+  note        String           @default("")
+  processedAt DateTime?
+  createdAt   DateTime         @default(now())
+  agent       AgentAccount     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, status])
+}
