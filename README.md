@@ -171,6 +171,18 @@ docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.productio
 - `api` 默认端口 `3002`
 - `postgres` 为容器内服务
 
+### 生产镜像与部署要点（本地已验证）
+
+- 三个服务镜像（`Dockerfile.api|web|admin`）均已完成构建，并通过 compose 冒烟测试
+  （health 检查、管理端登录、CSV 入库、下单支付、代理分润全部通过）
+- API 容器启动时自动执行 `prisma migrate deploy`，生产禁止使用 `db push`
+- Prisma 在 alpine 镜像中需要 `apk add openssl`；国内网络建议设置
+  `PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma`（API Dockerfile 已内置）
+- `NEXT_PUBLIC_API_BASE_URL` 在 Next.js 中是构建期常量，已通过 compose build args 注入，
+  修改公网 API 地址后需要重新构建 web/admin 镜像
+- compose 中已配置 `image: knowledge-pay-*:local` 本地镜像名，`deploy-remote.sh` 会在服务器
+  上以 `--build` 方式重新构建，首次部署无需手动推送镜像
+
 ### 方式二：GitHub 推送到服务器
 
 适合后续频繁发版，建议这样做：

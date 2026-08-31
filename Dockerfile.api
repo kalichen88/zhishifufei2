@@ -1,9 +1,13 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /app
+ENV PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma
+RUN apk add --no-cache openssl
 
 COPY package.json package-lock.json turbo.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/admin/package.json apps/admin/package.json
 COPY packages/types/package.json packages/types/package.json
 COPY packages/utils/package.json packages/utils/package.json
 
@@ -20,6 +24,7 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
@@ -31,4 +36,4 @@ COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 3002
 
-CMD ["sh", "-c", "npm run prisma:push --workspace=@app/api && node apps/api/dist/main.js"]
+CMD ["sh", "-c", "npm run prisma:migrate:deploy --workspace=@app/api && node apps/api/dist/main.js"]

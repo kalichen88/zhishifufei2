@@ -3,11 +3,18 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json turbo.json tsconfig.base.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
 COPY apps/admin/package.json apps/admin/package.json
+COPY packages/types/package.json packages/types/package.json
+COPY packages/utils/package.json packages/utils/package.json
 
 RUN npm ci
 
 COPY apps/admin apps/admin
+
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3002/api
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 
 RUN npm run build --workspace=@app/admin
 
@@ -22,6 +29,7 @@ COPY --from=builder /app/apps/admin/package.json ./apps/admin/package.json
 COPY --from=builder /app/apps/admin/next.config.ts ./apps/admin/next.config.ts
 COPY --from=builder /app/apps/admin/next-env.d.ts ./apps/admin/next-env.d.ts
 COPY --from=builder /app/apps/admin/app ./apps/admin/app
+COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 3001
 
