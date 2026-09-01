@@ -26,7 +26,12 @@ interface CloudRenewResponse {
 @Injectable()
 export class CloudResourceClient {
   private get baseUrl(): string {
-    return (process.env.YZM_RESOURCE_API_BASE ?? "").replace(/\/$/, "");
+    const baseUrl =
+      process.env.YZM_RESOURCE_API_BASE_URL ??
+      process.env.YZM_RESOURCE_API_BASE ??
+      "";
+
+    return baseUrl.replace(/\/$/, "");
   }
 
   private get resourceKey(): string {

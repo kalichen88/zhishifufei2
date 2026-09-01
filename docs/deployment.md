@@ -77,3 +77,35 @@ GitHub Actions 已提供模板：`.github/workflows/deploy.yml`
 - 生产数据库备份
 - 监控与告警
 - 灰度发布
+
+## 已完成的线上部署记录
+
+2026-09-01 已在 Ubuntu 服务器完成第一版部署：
+
+- 代码来源：GitHub `main` 分支
+- 运行方式：Docker Compose 生产编排
+- 数据库：PostgreSQL 16 容器，数据卷持久化
+- 服务端口：前台 `80`，后台 `8081`，API 通过 `80/api/` 访问
+- Nginx：宿主机反向代理，配置位于 `/etc/nginx/sites-enabled/`
+- 生产配置：服务器项目根目录 `.env.production`，不要提交到 Git
+- 服务器已启用约 2G swap，并写入 `/etc/fstab`
+
+已通过线上验收：
+
+- API 健康检查：`/api/health`
+- 前台首页、后台登录页
+- 后台登录、CSV 批量入库、内容配置
+- 创建代理、代理登录
+- PAID 内容下单、支付完成、购买授权
+- 一级代理分润金额正确
+- 提现申请、余额冻结、管理员拒绝、余额退回
+
+### 服务器更新命令
+
+```bash
+cd /srv/knowledge-pay-rewrite/rewrite
+git pull origin main
+docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.production up -d --build api
+```
+
+只更新 API 时可以按上面的命令重建 `api`；如果 Web、Admin 的构建参数或依赖也变了，再把服务名改成 `web admin`，或使用 `--build` 重建全部服务。
