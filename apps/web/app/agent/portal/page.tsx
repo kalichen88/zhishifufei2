@@ -1,7 +1,8 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 
 const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3002/api";
@@ -55,6 +56,10 @@ export default function AgentPortalPage() {
   const [accountInfo, setAccountInfo] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const qrContainerRef = useRef<HTMLDivElement | null>(null);
 
   const agentFetch = useCallback(
     async (path: string, init?: RequestInit) => {
@@ -124,6 +129,56 @@ export default function AgentPortalPage() {
     void loadAll();
   }, [loadAll]);
 
+  useEffect(() => {
+    if (!profile?.inviteCode) return;
+
+    setInviteUrl(`${window.location.origin}/content?aid=${profile.inviteCode}`);
+  }, [profile?.inviteCode]);
+
+  async function copyPromoLink() {
+    if (!inviteUrl) return;
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(inviteUrl);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = inviteUrl;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        if (!document.execCommand("copy")) {
+          throw new Error("复制失败");
+        }
+
+        document.body.removeChild(textarea);
+      }
+
+      setCopied(true);
+      setPromoError("");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setPromoError("复制失败，请手动全选链接复制");
+    }
+  }
+
+  function downloadQrCode() {
+    const canvas = qrContainerRef.current?.querySelector("canvas");
+
+    if (!canvas || !profile) {
+      setPromoError("二维码尚未生成，请稍后重试");
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = `agent-${profile.inviteCode}-qr.png`;
+    link.click();
+    setPromoError("");
+  }
+
   async function submitWithdrawal() {
     const amountCents = Math.round(Number(amount) * 100);
 
@@ -165,8 +220,42 @@ export default function AgentPortalPage() {
           {profile ? ` · 邀请码：${profile.inviteCode}` : ""}
         </div>
         {profile ? (
-          <div style={{ color: "#2563eb", fontSize: 13 }}>
-            推广链接：{typeof window !== "undefined" ? `${window.location.origin}/content?aid=${profile.inviteCode}` : ""}
+          <div style={promoStyle}>
+            <div style={promoInfoStyle}>
+              <div style={{ color: "#2563eb", fontSize: 13, wordBreak: "break-all" }}>
+                推广链接：{inviteUrl || "生成中..."}
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                <button type="button" onClick={() => void copyPromoLink()} style={smallButtonStyle}>
+                  {copied ? "已复制" : "复制链接"}
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadQrCode}
+                  style={{ ...smallButtonStyle, background: "#475569" }}
+                >
+                  下载二维码
+                </button>
+              </div>
+              {promoError ? (
+                <div style={{ marginTop: 10, color: "#dc2626", fontSize: 13 }}>{promoError}</div>
+              ) : null}
+            </div>
+            <div ref={qrContainerRef} style={qrStyle}>
+              {inviteUrl ? (
+                <QRCodeCanvas
+                  value={inviteUrl}
+                  size={176}
+                  marginSize={2}
+                  level="M"
+                  bgColor="#ffffff"
+                  fgColor="#0f172a"
+                  title="代理推广二维码"
+                />
+              ) : (
+                <div style={{ width: 176, height: 176, color: "#94a3b8", fontSize: 13 }}>生成中...</div>
+              )}
+            </div>
           </div>
         ) : null}
       </div>
@@ -297,6 +386,39 @@ const statCardStyle: CSSProperties = {
   borderRadius: 14,
   background: "#f8fafc",
   border: "1px solid #e5e7eb"
+};
+
+const promoStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 20,
+  marginTop: 14,
+  alignItems: "center",
+  flexWrap: "wrap"
+};
+
+const promoInfoStyle: CSSProperties = {
+  minWidth: 280,
+  flex: "1 1 320px"
+};
+
+const qrStyle: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  padding: 10,
+  borderRadius: 14,
+  background: "#fff",
+  border: "1px solid #e5e7eb"
+};
+
+const smallButtonStyle: CSSProperties = {
+  padding: "8px 12px",
+  borderRadius: 8,
+  border: "none",
+  background: "#2563eb",
+  color: "#fff",
+  cursor: "pointer",
+  fontSize: 13
 };
 
 const labelStyle: CSSProperties = {

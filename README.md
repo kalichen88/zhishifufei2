@@ -146,7 +146,7 @@ PostgreSQL 默认配置：
 
 ### 页面
 
-- Web：`/agent/login` 代理登录、`/agent/portal` 代理中心（余额/推广数/分润明细/提现）
+- Web：`/agent/login` 代理登录、`/agent/portal` 代理中心（推广链接与二维码下载、余额/推广数/分润明细/提现）
 - Web：内容页支持推广链接 `?aid=邀请码`，首次访问后长期缓存归因
 - Admin：`/agents` 代理管理（创建/改比例/停启用/提现审核）
 
