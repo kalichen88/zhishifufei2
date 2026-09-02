@@ -41,7 +41,7 @@ services:
       PAY_API_PUBLIC_BASE_URL: ${PAY_API_PUBLIC_BASE_URL}
       PAY_WEB_BASE_URL: ${PAY_WEB_BASE_URL}
     ports:
-      - "3002:3002"
+      - "127.0.0.1:${API_HOST_PORT:-3002}:3002"
 
   web:
     image: knowledge-pay-web:local
@@ -59,7 +59,7 @@ services:
       PORT: 3000
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${WEB_HOST_PORT:-3000}:3000"
 
   admin:
     image: knowledge-pay-admin:local
@@ -77,7 +77,7 @@ services:
       PORT: 3001
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
     ports:
-      - "3001:3001"
+      - "${ADMIN_HOST_PORT:-3001}:3001"
 
 volumes:
   postgres_prod_data:
